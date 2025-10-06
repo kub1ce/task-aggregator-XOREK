@@ -3,7 +3,7 @@
 import requests
 import os
 from dotenv import load_dotenv
-from database import get_chat_history
+from backend.database import get_chat_history
 
 load_dotenv()
 

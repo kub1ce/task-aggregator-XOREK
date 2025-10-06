@@ -2,8 +2,8 @@
 import os
 from pyrogram import Client, filters
 from dotenv import load_dotenv
-from database import init_db, save_message_to_db
-from ai_response import generate_ai_response
+from backend.database import init_db, save_message_to_db
+from backend.ai_response import generate_ai_response
 
 load_dotenv()
 

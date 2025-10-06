@@ -5,5 +5,8 @@
 __pycache__/
 
 *.session
+*.session-journal
 tg.py
 *.db
+dir2txt.py
+combined_output.txt
