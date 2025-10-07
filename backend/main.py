@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import time
-from backend.integrations.telegram_bot import app
+from backend.integrations.telegram_wrapper import app
 from backend.database import init_db
 from backend.integrations.email_reader import fetch_unread_emails
 import os

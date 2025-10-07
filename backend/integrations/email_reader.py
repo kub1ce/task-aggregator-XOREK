@@ -1,9 +1,4 @@
-
-# ! ЗАЙТИ в настройки -> внешние сервисы -> Доступ к Почте по IMАР, РОР и SMTP + ПАРОЛЬ ДЛЯ ВНЕШНИХ ПРИЛОЖЕНИЙ
-# ! ЗАЙТИ в настройки -> внешние сервисы -> Доступ к Почте по IMАР, РОР и SMTP + ПАРОЛЬ ДЛЯ ВНЕШНИХ ПРИЛОЖЕНИЙ
-# ! ЗАЙТИ в настройки -> внешние сервисы -> Доступ к Почте по IMАР, РОР и SMTP + ПАРОЛЬ ДЛЯ ВНЕШНИХ ПРИЛОЖЕНИЙ
-
-# email_reader.py
+# backend/integrations/email_reader.py
 import imaplib
 import email
 from email.header import decode_header
@@ -11,8 +6,8 @@ import time
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-from backend.database import DB_PATH
-import sqlite3
+from database import save_message_to_db, Notification # Импортируем функцию сохранения и модель
+from services.notification_processor import calculate_importance # Импортируем вычисление важности
 
 load_dotenv()
 
@@ -22,7 +17,6 @@ IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.mail.com")
 IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
 
 def decode_mime_words(s):
-    """Декодирует заголовки вроде =?utf-8?B?...?="""
     if s is None:
         return ""
     decoded_fragments = decode_header(s)
@@ -42,8 +36,6 @@ def fetch_unread_emails():
     try:
         mail = connect_to_email()
         mail.select("INBOX", readonly=True)
-        
-        # Ищем непрочитанные письма
         status, messages = mail.search(None, 'UNSEEN')
         if status != 'OK':
             print("❌ Не удалось получить список писем")
@@ -57,18 +49,13 @@ def fetch_unread_emails():
                 status, msg_data = mail.fetch(eid, '(RFC822)')
                 if status != 'OK':
                     continue
-
                 raw_email = msg_data[0][1]
                 msg = email.message_from_bytes(raw_email)
 
-                # Отправитель
                 from_header = msg.get("From", "")
                 from_name, from_email = parse_email_address(from_header)
 
-                # Тема
                 subject = decode_mime_words(msg.get("Subject", ""))
-
-                # Дата
                 date_str = msg.get("Date", "")
                 try:
                     email_date = email.utils.parsedate_to_datetime(date_str)
@@ -76,36 +63,43 @@ def fetch_unread_emails():
                 except:
                     date_iso = datetime.utcnow().isoformat()
 
-                # Тело письма
                 body = get_email_body(msg)
-
-                # Message-ID
                 message_id = msg.get("Message-ID", str(eid))
 
-                # Сохраняем в БД
-                save_email_to_db({
-                    "from_email": from_email,
-                    "from_name": from_name,
-                    "subject": subject,
-                    "body": body,
-                    "date": date_iso,
-                    "message_id": message_id,
-                    "raw": str(msg)[:1000]
-                })
+                # --- НАЧАЛО: КОНВЕРТАЦИЯ Email в нашу модель Notification ---
+                notification = Notification(
+                    source='email',
+                    from_email=from_email,
+                    from_name=from_name,
+                    chat_title=subject, # Тема письма
+                    text_content=body,
+                    date=date_iso,
+                    message_id=message_id,
+                    raw_message=str(msg)[:1000]
+                )
 
-                print(f"✅ Сохранено письмо от {from_name} ({from_email}): {subject[:50]}...")
+                # Вычисляем важность
+                notification.importance = calculate_importance(notification)
+                # Статус по умолчанию 'unread'
+                notification.status = 'unread'
+                # --- КОНЕЦ: КОНВЕРТАЦИЯ ---
+
+                # --- СОХРАНЕНИЕ ---
+                notification_id = save_message_to_db(notification)
+                if notification_id:
+                    print(f"✅ Письмо от {notification.from_name} ({notification.from_email}) сохранено в БД с ID {notification_id}")
+                else:
+                    print(f"❌ Ошибка при сохранении письма от {from_name} ({from_email})")
 
             except Exception as e:
                 print(f"❌ Ошибка при обработке письма {eid}: {e}")
 
         mail.close()
         mail.logout()
-
     except Exception as e:
         print(f"❌ Ошибка подключения к почте: {e}")
 
 def parse_email_address(from_header):
-    """Преобразует 'Имя <email@example.com>' → ('Имя', 'email@example.com')"""
     from_header = from_header.strip()
     if "<" in from_header and ">" in from_header:
         name_part = from_header.split("<")[0].strip()
@@ -116,7 +110,6 @@ def parse_email_address(from_header):
         return "", from_header
 
 def get_email_body(msg):
-    """Извлекает текстовое тело письма (игнорирует HTML)"""
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
@@ -134,34 +127,21 @@ def get_email_body(msg):
                 return str(msg.get_payload())[:500]
     return ""
 
-def save_email_to_db(data):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        
-        # Проверяем, не сохраняли ли уже это письмо
-        cursor.execute("SELECT 1 FROM messages WHERE message_id = ? AND source = 'email'", (data["message_id"],))
-        if cursor.fetchone():
-            return  # уже есть
+def run_integration():
+    return
+    """
+    Функция для запуска цикла проверки почты в отдельном потоке.
+    """
+    # logger.info("📧 Запуск цикла проверки Email интеграции...")
+    while True:
+        # try:
+        fetch_unread_emails()
+        # except Exception as e:
+            # logger.error(f"⚠️ Ошибка в цикле email_reader: {e}")
+        time.sleep(60) # Проверка каждую минуту
 
-        cursor.execute("""
-            INSERT INTO messages (
-                source, from_email, from_name, chat_title,
-                text_content, date, message_id, raw_message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "email",
-            data["from_email"],
-            data["from_name"],
-            data["subject"],
-            data["body"],
-            data["date"],
-            data["message_id"],
-            data["raw"]
-        ))
-        conn.commit()
-
+# Основной цикл проверки почты остается, но теперь он вызывает новую функцию сохранения
 if __name__ == "__main__":
-
     import threading, time
 
     def email_worker():
@@ -171,10 +151,8 @@ if __name__ == "__main__":
                 fetch_unread_emails()
             except Exception as e:
                 print(f"⚠️ Ошибка в email_worker: {e}")
-            time.sleep(60)  # проверка каждую минуту
+            time.sleep(60)
 
-    # Запуск фонового потока для почты
     email_thread = threading.Thread(target=email_worker, daemon=True)
     email_thread.start()
-
     while 1: pass
