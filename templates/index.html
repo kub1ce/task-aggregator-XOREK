@@ -303,7 +303,6 @@
             });
         }
 
-        // Новая версия loadMessages: рендер групп, приватки аккуратно, ai_reply - раскрыт по умолчанию
         function loadMessages(){
             fetch('/api/grouped_messages')
                 .then(res => res.json())
@@ -347,7 +346,6 @@
                         body.className = 'chat-group-body';
 
                         if (g.is_group) {
-                            // Групповой чат: показываем по сообщениям (с именами) — но хронологически и аккуратно
                             if (g.collapsed) {
                                 const summaryBox = document.createElement('div');
                                 summaryBox.className = 'chat-summary';
@@ -379,7 +377,6 @@
                                 });
                             }
                         } else {
-                            // Приватный диалог: показываем имя один раз и затем набор сообщений без постоянного префикса имени
                             const participant = g.chat_title || 'Собеседник';
                             const header = document.createElement('div');
                             header.style.fontWeight = '600';
@@ -417,10 +414,10 @@
                             }
                         }
 
-                        // AI reply area: ПОКАЗАНА по умолчанию
+                        // AI reply area
                         const aiArea = document.createElement('div');
                         aiArea.className = 'mt-2';
-                        aiArea.style.display = 'block'; // <-- развернуто по умолчанию
+                        aiArea.style.display = 'block';
                         aiArea.innerHTML = `<div style="padding:10px;border-radius:8px;background:#f0f8ff;"><strong>Ответ ИИ (групповой):</strong><div class="ai-reply-text" style="margin-top:8px; white-space:pre-wrap">${escapeHtml(g.summary || '')}</div>
                                             <div class="mt-2 text-end"><button class="btn btn-sm btn-primary btn-copy-reply">Копировать</button></div></div>`;
 
@@ -493,7 +490,7 @@
             const root = document.getElementById('analysis-root');
             root.innerHTML = `<div class="analysis-block small-muted">Загрузка анализа...</div>`;
 
-            // передаём какие источники включены, чтобы сервер мог учитывать (опционально)
+            // передаём какие источники включены, чтобы сервер мог учитывать
             const params = new URLSearchParams();
             params.append('sources', JSON.stringify(Array.from(enabledSources)));
 

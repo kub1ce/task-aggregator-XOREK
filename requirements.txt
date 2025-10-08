@@ -1,0 +1,10 @@
+pyrogram
+tgcrypto
+python-dotenv
+requests
+flask
+flask-cors
+websockets
+sqlite3
+email
+imaplib

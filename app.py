@@ -102,7 +102,6 @@ def index():
 def get_all_messages():
     limit = int(request.args.get('limit', 50))
     offset = int(request.args.get('offset', 0))
-    # source фильтрация удалена — теперь это делается на клиенте мульти-выбором
     importance = request.args.get('importance')
     search = request.args.get('search', '')
     sort_order = request.args.get('sort_order', 'desc')  # 'asc' или 'desc'
@@ -275,61 +274,9 @@ def analysis():
             )
         html_parts.append('</div></div>')
 
-    # prompt для LLM (на будущее) — короткая инструкция
-    prompt = (
-        "Проанализируй список сообщений. "
-        "Выдели 5-8 основных тем и для каждой темы дай краткое резюме (1-2 предложения), "
-        "укажи количество сообщений и среднюю важность. "
-        "Отдельным блоком перечисли топ-8 самых срочных сообщений (importance >=4) с краткой причиной, почему они важны. "
-        "Верни результат в HTML-блоках, готовых к вставке в панель справа."
-    )
-    html_parts.append('<div class="analysis-block small-muted" style="font-size:0.85rem">')
-    html_parts.append('<div style="font-weight:600;margin-bottom:6px">Промпт (для LLM)</div>')
-    html_parts.append(f'<div style="white-space:pre-wrap">{safe(prompt)}</div>')
-    html_parts.append('</div>')
-
     html = "\n".join(html_parts)
-    return jsonify({'html': html, 'prompt': prompt})
+    return jsonify({'html': html, 'prompt': ""})
 
-def _simple_summarize_text(full_text, max_sentences=3):
-    """
-    Простая экстрактивная сводка:
-    - разбиваем на предложения,
-    - считаем частоты слов (без стоп-слов),
-    - оцениваем предложение как сумму частот слов,
-    - возвращаем top-N предложений в исходном порядке.
-    """
-    if not full_text or len(full_text) < 120:
-        return full_text.strip()
-
-    # разбивка на предложения (очень простая)
-    sents = re.split(r'(?<=[.!?])\s+', full_text.strip())
-    if len(sents) <= max_sentences:
-        return " ".join(sents).strip()
-
-    # базовые стоп-слова (рус/eng)
-    stopwords = set("""и в во не на я он она мы вы ты что это для как до через под без при же так но его её за от по или ли их о об the a an and or to of in on is are""".split())
-
-    word_re = re.compile(r'\b[а-яА-Яa-zA-Z0-9]{3,}\b', flags=re.UNICODE)
-    words = word_re.findall(full_text.lower())
-    words = [w for w in words if w not in stopwords]
-    if not words:
-        # fallback: return first max_sentences sentences
-        return " ".join(sents[:max_sentences]).strip()
-
-    freqs = Counter(words)
-    # score each sentence
-    sent_scores = []
-    for i, sent in enumerate(sents):
-        ws = word_re.findall(sent.lower())
-        score = sum(freqs.get(w, 0) for w in ws)
-        sent_scores.append((i, score, sent.strip()))
-
-    # pick top sentences by score
-    top = sorted(sent_scores, key=lambda x: x[1], reverse=True)[:max_sentences]
-    top_idx = sorted([t[0] for t in top])
-    summary = " ".join([sents[i].strip() for i in top_idx])
-    return summary.strip()
 
 @app.route('/api/grouped_messages', methods=['GET'])
 def get_grouped_messages():
@@ -419,5 +366,4 @@ def get_grouped_messages():
 
 if __name__ == '__main__':
     init_db()
-    print("Запуск приложения на Flask...")
     app.run(debug=True)

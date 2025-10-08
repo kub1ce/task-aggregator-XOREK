@@ -53,7 +53,7 @@ def message_exists_in_db(notification):
 
 def save_message_to_db(notification):
     if message_exists_in_db(notification):
-        print(f"⚠️ Письмо с ID {notification.message_id} уже существует в базе.")
+        print(f"Письмо с ID {notification.message_id} уже существует в базе.")
         return None
 
     conn = sqlite3.connect(DATABASE)
@@ -106,7 +106,7 @@ def fetch_unread_emails():
             return
 
         email_ids = messages[0].split()
-        print(f"📬 Найдено писем: {len(email_ids)}")
+        print(f"Найдено писем: {len(email_ids)}")
 
         for eid in email_ids:
             try:
@@ -147,12 +147,12 @@ def fetch_unread_emails():
                     print(f"Письмо от {notification.from_name} ({notification.from_email}) сохранено в БД с ID {notification_id}")
 
             except Exception as e:
-                print(f"❌ Ошибка при обработке письма {eid}: {e}")
+                print(f"Ошибка при обработке письма {eid}: {e}")
 
         mail.close()
         mail.logout()
     except Exception as e:
-        print(f"❌ Ошибка подключения к почте: {e}")
+        print(f"Ошибка подключения к почте: {e}")
 
 def parse_email_address(from_header):
     from_header = from_header.strip()
@@ -187,7 +187,7 @@ def main():
         try:
             fetch_unread_emails()
         except Exception as e:
-            print(f"⚠️ Ошибка в email_worker: {e}")
+            print(f"Ошибка в email_worker: {e}")
         time.sleep(60)
 
 if __name__ == "__main__":

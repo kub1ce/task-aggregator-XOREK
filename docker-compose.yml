@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Ollama запускается ОТДЕЛЬНО на хосте (или в отдельном compose)
+  # Не включаем сюда, потому что:
+  # - требует GPU / много RAM
+  # - лучше управлять отдельно
+  # Убедитесь, что Ollama запущен: `ollama serve` или через systemd
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./messages.db:/app/messages.db
+      - ./.env:/app/.env
+    environment:
+      - FLASK_ENV=development
+    command: ["python", "app.py"]
+    depends_on:
+      - telegram
+      - email
+
+  telegram:
+    build: .
+    volumes:
+      - ./messages.db:/app/messages.db
+      - ./my_session.session:/app/my_session.session  # сохраняет сессию между запусками
+      - ./.env:/app/.env
+    stdin_open: true   # для ввода номера/кода при первом запуске
+    tty: true          # интерактивный режим
+    command: ["python", "tg.py"]
+
+  email:
+    build: .
+    volumes:
+      - ./messages.db:/app/messages.db
+      - ./.env:/app/.env
+    command: ["python", "email_reader.py"]
+    restart: unless-stopped
