@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление уведомлениями — Контур</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root{
+            --bg: #f4f6fb;
+            --card: #ffffff;
+            --muted: #6c757d;
+            --accent: #0d6efd;
+        }
+        body { background-color: var(--bg); font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color:#222; }
+        .app-shell { min-height:100vh; }
+        .left-panel { height:100vh; padding:1.15rem; border-right: 1px solid rgba(0,0,0,0.05); background: linear-gradient(180deg,#ffffff 0%, #fbfdff 100%); }
+        .sources-list { margin-top:1rem; }
+        .source-row { display:flex; align-items:center; justify-content:space-between; padding:0.45rem 0.25rem; border-radius:8px; }
+        .source-row + .source-row { margin-top:0.4rem; }
+        .source-meta { display:flex; gap:0.6rem; align-items:center; }
+        .small-muted { color:var(--muted); font-size:0.85rem; }
+
+        .center-panel { padding:1.15rem; }
+        .filters-panel { background: var(--card); padding: .9rem; border-radius: 12px; box-shadow: 0 6px 18px rgba(13,110,253,0.03); }
+        .messages-container { height: calc(100vh - 220px); overflow-y:auto; padding-top:0.5rem; }
+
+        .msg-card { transition: box-shadow 0.18s, transform 0.08s; border: none; border-radius: 12px; overflow: hidden; position:relative; }
+        .msg-card:hover { box-shadow: 0 8px 28px rgba(16,24,40,0.06); transform: translateY(-2px); }
+        .msg-leftstripe { width:6px; height:100%; position:absolute; left:0; top:0; }
+        .msg-body { padding-left:14px; }
+
+        /* Grouped chat card styles */
+        .chat-group-card { border-radius:12px; background:#fff; padding:12px; margin-bottom:12px; box-shadow:0 6px 20px rgba(16,24,40,0.04); position:relative; overflow:hidden; }
+        .chat-group-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .chat-group-meta { font-size:0.9rem; color:#666; }
+        .chat-group-body { margin-top:10px; max-height: 360px; overflow: auto; padding-right:6px; }
+        .chat-msg { padding:10px;border-radius:8px;margin-bottom:10px;background:#fbfbfd; }
+        .chat-msg .from { font-weight:600; font-size:0.92rem; }
+        .chat-summary { padding:10px; background:linear-gradient(180deg,#fffaf0,#fff); border-radius:8px; margin-top:8px; color:#333; }
+        .chat-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .priority-pill { padding:6px 10px; border-radius:999px; font-weight:600; font-size:0.85rem; }
+        .pr-5 { background:linear-gradient(90deg,#6b021d,#a61b2a); color:#fff; }
+        .pr-4 { background:linear-gradient(90deg,#ffb020,#ff7a18); color:#fff; }
+        .pr-3 { background:linear-gradient(90deg,#20c997,#0ea46f); color:#fff; }
+        .pr-1-2 { background:linear-gradient(90deg,#c9ced4,#8b949e); color:#111; }
+
+
+        .priority-5 .msg-leftstripe { background: linear-gradient(180deg,#6b021d,#a61b2a); }
+        .priority-4 .msg-leftstripe { background: linear-gradient(180deg,#ffb020,#ff7a18); }
+        .priority-3 .msg-leftstripe { background: linear-gradient(180deg,#20c997,#0ea46f); }
+        .priority-2 .msg-leftstripe { background: linear-gradient(180deg,#c9ced4,#aab0b6); }
+        .priority-1 .msg-leftstripe { background: linear-gradient(180deg,#8b949e,#6f7a85); }
+
+        .source-badge { font-size: 0.76em; padding: 0.25em .45em; border-radius: 6px; background: rgba(0,0,0,0.06); color:#333; }
+        .ai-reply-box { background-color: #f0f8ff; padding: 10px; border-radius: 8px; margin-top: 8px; font-size:0.95rem; color:#0b3d91; }
+
+        .right-panel { padding:1.15rem; height:100vh; border-left:1px solid rgba(0,0,0,0.04); background: linear-gradient(180deg,#ffffff 0%, #fbfdff 100%); }
+        .analysis-panel { position: sticky; top:20px; display:flex; flex-direction:column; }
+        .analysis-root { overflow-y:auto; max-height: calc(100vh - 120px); padding-right:6px; }
+
+        .analysis-block { background: #fff; padding: 0.9rem; border-radius: 10px; box-shadow: 0 6px 16px rgba(16,24,40,0.03); margin-bottom: 12px; transition: box-shadow 0.18s, border 0.18s; }
+        .analysis-block.highlight { box-shadow: 0 10px 26px rgba(13,110,253,0.12); border: 1px solid rgba(13,110,253,0.12); }
+
+        .kw { display:inline-block; padding:7px 10px; border-radius:999px; background:rgba(13,110,253,0.08); color:var(--accent); font-size:0.9rem; margin-right:8px; margin-bottom:8px; cursor:pointer; user-select:none; }
+        .kw:hover { background:rgba(13,110,253,0.12); transform:translateY(-1px); }
+        .kw-chip { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:#f7fbff; border:1px solid rgba(13,110,253,0.08); color:var(--accent); cursor:pointer; margin-right:6px; margin-bottom:6px; }
+        .kw-chip.active { box-shadow:0 6px 18px rgba(13,110,253,0.06); background:linear-gradient(180deg,#eaf3ff,#ffffff); }
+
+        /* top-topics scroll small area */
+        .top-topics { max-height: 28vh; overflow-y: auto; padding-right:6px; }
+
+        .empty-state { color: var(--muted); text-align:center; padding:2rem; }
+
+        /* LEFT: Юджайл */
+        .udjail-card { margin-top:18px; padding:12px; background:linear-gradient(180deg,#fafbfd,#fff); border-radius:10px; border:1px dashed rgba(0,0,0,0.06); color:var(--muted); }
+        .udjail-card h6 { margin-bottom:6px; }
+
+        /* small screens */
+        @media (max-width: 991px){
+            .left-panel { display:none; }
+            .right-panel { display:none; }
+            .center-panel { padding:0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid app-shell">
+        <div class="row g-0">
+            <!-- LEFT: sources + toggles -->
+            <div class="col-lg-2 left-panel d-none d-lg-block">
+                <h5 class="mb-2">Источники</h5>
+                <div class="small-muted">Включайте/отключайте источники — это фильтр отображения сообщений</div>
+
+                <div id="sources-container" class="sources-list"></div>
+
+                <div class="udjail-card">
+                    <h6>Юджайл <small class="small-muted">(не подключено)</small></h6>
+                    <div class="small-muted" style="font-size:0.9rem">Юджайл — сервис для управления задачами и быстрых решений.</div>
+                    <div class="mt-3 d-flex justify-content-between">
+                        <button class="btn btn-sm btn-outline-secondary"><i class="fas fa-rocket"></i> Открыть</button>
+                        <button class="btn btn-sm btn-link">Настроить</button>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <div class="d-flex justify-content-between align-items-center small-muted">
+                    <div>Авто-обновление</div>
+                    <div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="auto-refresh-switch" checked>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER: messages -->
+            <div class="col-lg-8 center-panel">
+                <div class="mb-3">
+                    <div class="filters-panel">
+                        <div class="row align-items-center">
+                            <div class="col-md-5 mb-2 mb-md-0">
+                                <input type="text" class="form-control" id="search-input" placeholder="🔍 Поиск по сообщениям...">
+                            </div>
+                            <div class="col-md-3 mb-2 mb-md-0">
+                                <select class="form-select" id="priority-filter">
+                                    <option value="">Все приоритеты</option>
+                                    <option value="1">1 — не важно</option>
+                                    <option value="2">2 — мало важно</option>
+                                    <option value="3">3 — умеренно</option>
+                                    <option value="4">4 — важно</option>
+                                    <option value="5">5 — срочно</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 mb-2 mb-md-0">
+                                <select class="form-select" id="sort-order">
+                                    <option value="desc">Новые первые</option>
+                                    <option value="asc">Старые первые</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 text-end">
+                                <button class="btn btn-sm btn-outline-secondary" id="refresh-btn"><i class="fas fa-sync-alt"></i> Обновить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="messages-container" class="messages-container"></div>
+            </div>
+
+            <!-- RIGHT: AI analysis -->
+            <div class="col-lg-2 right-panel d-none d-lg-block">
+                <div class="analysis-panel">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div><h6 class="mb-0">ИИ — анализ</h6><div class="small-muted">Темы и приоритеты</div></div>
+                        <button class="btn btn-sm btn-primary" id="refresh-analysis"><i class="fas fa-brain"></i> Обновить</button>
+                    </div>
+
+                    <div id="analysis-root" class="analysis-root">
+                        <div class="analysis-block small-muted">Анализ загружается...</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- bootstrap bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // state
+        let enabledSources = new Set();
+        let currentPriority = '';
+        let currentSearch = '';
+        let currentSortOrder = 'desc';
+        let autoRefresh = true;
+        const REFRESH_INTERVAL_MS = 5000;
+        let searchDebounceTimer = null;
+
+        // Helpers
+        function saveEnabledSources(){
+            localStorage.setItem('enabledSources', JSON.stringify(Array.from(enabledSources)));
+        }
+        function loadEnabledSources(){
+            try {
+                const v = JSON.parse(localStorage.getItem('enabledSources') || 'null');
+                if(Array.isArray(v)) {
+                    enabledSources = new Set(v);
+                }
+            } catch(e){ enabledSources = new Set(); }
+        }
+
+        function setActiveTopic(keyword){
+            // Устанавливаем значение поиска и применяем фильтр
+            const searchInput = document.getElementById('search-input');
+            searchInput.value = keyword || '';
+            currentSearch = keyword || '';
+            loadMessages();
+
+            // Пометим чипы в правой панели
+            const root = document.getElementById('analysis-root');
+            if(root){
+                root.querySelectorAll('.kw-chip').forEach(c => {
+                    const k = (c.dataset.keyword || '').trim();
+                    if(keyword && k.toLowerCase() === keyword.toLowerCase()){
+                        c.classList.add('active');
+                    } else {
+                        c.classList.remove('active');
+                    }
+                });
+
+                // подсветим и проскроллим подробный блок темы
+                root.querySelectorAll('.analysis-block').forEach(block => {
+                    // ищем заголовок "Тема: {keyword}" внутри блока
+                    const txt = block.innerText || '';
+                    if(keyword && txt.toLowerCase().includes(('тема: ' + keyword).toLowerCase())){
+                        block.classList.add('highlight');
+                        // плавный скролл
+                        block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // снимем подсветку через 4 секунды
+                        setTimeout(() => block.classList.remove('highlight'), 4000);
+                    } else {
+                        block.classList.remove('highlight');
+                    }
+                });
+            }
+        }
+
+        function updateActiveChipsBySearch(){
+            // При вводе в поиск подсвечиваем подходящие чипы (если точное совпадение)
+            const keyword = currentSearch && currentSearch.trim();
+            const root = document.getElementById('analysis-root');
+            if(!root) return;
+            if(!keyword){
+                root.querySelectorAll('.kw-chip').forEach(c => c.classList.remove('active'));
+                root.querySelectorAll('.analysis-block').forEach(b => b.classList.remove('highlight'));
+                return;
+            }
+            root.querySelectorAll('.kw-chip').forEach(c => {
+                const k = (c.dataset.keyword || '').trim().toLowerCase();
+                // пометим активным если ключевое слово содержится в поле поиска
+                if(k && keyword.toLowerCase().includes(k) || k === keyword.toLowerCase()){
+                    c.classList.add('active');
+                } else {
+                    c.classList.remove('active');
+                }
+            });
+        }
+
+        // Load sources from server and render toggles
+        function loadSources(){
+            fetch('/api/sources').then(r => r.json()).then(data => {
+                const container = document.getElementById('sources-container');
+                container.innerHTML = '';
+                loadEnabledSources();
+
+                // default enable all if empty
+                if(enabledSources.size === 0){
+                    data.forEach(s => enabledSources.add(s.value));
+                    saveEnabledSources();
+                }
+
+                data.forEach(src => {
+                    const row = document.createElement('div');
+                    row.className = 'source-row';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'source-meta';
+                    const icon = document.createElement('i');
+                    icon.className = `fas fa-${src.value === 'telegram' ? 'paper-plane' : 'envelope'} fa-lg text-primary`;
+                    const title = document.createElement('div');
+                    title.innerHTML = `<div style="font-weight:600">${src.name}</div><div class="small-muted" style="font-size:12px">${src.value}</div>`;
+                    meta.appendChild(icon);
+                    meta.appendChild(title);
+
+                    const control = document.createElement('div');
+                    control.innerHTML = `
+                        <div class="form-check form-switch">
+                          <input class="form-check-input source-switch" type="checkbox" data-source="${src.value}" ${enabledSources.has(src.value) ? 'checked' : ''}>
+                        </div>
+                    `;
+
+                    row.appendChild(meta);
+                    row.appendChild(control);
+                    container.appendChild(row);
+                });
+
+                document.querySelectorAll('.source-switch').forEach(cb => {
+                    cb.addEventListener('change', (e) => {
+                        const src = e.target.dataset.source;
+                        if(e.target.checked) enabledSources.add(src); else enabledSources.delete(src);
+                        saveEnabledSources();
+                        loadMessages();
+                        loadAnalysis(); // обновим аналитику для видимых источников
+                    });
+                });
+            });
+        }
+
+        function loadMessages(){
+            fetch('/api/grouped_messages')
+                .then(res => res.json())
+                .then(groups => {
+                    const container = document.getElementById('messages-container');
+                    container.innerHTML = '';
+
+                    if(!groups || groups.length === 0){
+                        container.innerHTML = '<div class="empty-state">Нет сообщений</div>';
+                        return;
+                    }
+
+                    groups.forEach(g => {
+                        const card = document.createElement('div');
+                        card.className = 'chat-group-card';
+
+                        // priority class & label
+                        let prClass = 'pr-1-2';
+                        if (g.priority >= 5) prClass = 'pr-5';
+                        else if (g.priority === 4) prClass = 'pr-4';
+                        else if (g.priority === 3) prClass = 'pr-3';
+
+                        const headerHTML = `
+                            <div class="chat-group-header">
+                                <div>
+                                    <div style="font-weight:700">${escapeHtml(g.chat_title || ('Чат ' + (g.chat_id || '—')))}</div>
+                                    <div class="chat-group-meta">${g.is_group ? 'Групповой чат' : 'Приватный диалог'} • ${g.total_messages} сообщений</div>
+                                </div>
+                                <div class="chat-controls">
+                                    <div class="priority-pill ${prClass}">Приоритет: ${g.priority}</div>
+                                    <button class="btn btn-sm btn-outline-primary btn-gen-reply" data-group="${escapeHtml(g.group_key)}">Ответ ИИ</button>
+                                    <button class="btn btn-sm btn-outline-danger btn-mark-read" data-group="${escapeHtml(g.group_key)}">Прочитано</button>
+                                    <button class="btn btn-sm btn-outline-secondary btn-toggle" data-group="${escapeHtml(g.group_key)}">${g.collapsed ? 'Развернуть' : 'Свернуть'}</button>
+                                </div>
+                            </div>
+                        `;
+
+                        card.innerHTML = headerHTML;
+
+                        const body = document.createElement('div');
+                        body.className = 'chat-group-body';
+
+                        if (g.is_group) {
+                            if (g.collapsed) {
+                                const summaryBox = document.createElement('div');
+                                summaryBox.className = 'chat-summary';
+                                summaryBox.innerHTML = `<strong>Сводка:</strong> ${escapeHtml(g.summary || '(нет сводки)')}`;
+                                body.appendChild(summaryBox);
+
+                                const msgsWrap = document.createElement('div');
+                                msgsWrap.className = 'chat-messages-collapsed';
+                                msgsWrap.style.display = 'none';
+                                g.messages.forEach(m => {
+                                    const mdiv = document.createElement('div');
+                                    mdiv.className = 'chat-msg';
+                                    const from = m.from_user_name || '—';
+                                    const date = m.date ? new Date(m.date).toLocaleString() : '';
+                                    mdiv.innerHTML = `<div class="from">${escapeHtml(from)} <small class="small-muted" style="font-weight:400">${escapeHtml(date)}</small></div>
+                                                    <div class="text" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(m.text_content)}</div>`;
+                                    msgsWrap.appendChild(mdiv);
+                                });
+                                body.appendChild(msgsWrap);
+                            } else {
+                                g.messages.forEach(m => {
+                                    const mdiv = document.createElement('div');
+                                    mdiv.className = 'chat-msg';
+                                    const from = m.from_user_name || '—';
+                                    const date = m.date ? new Date(m.date).toLocaleString() : '';
+                                    mdiv.innerHTML = `<div class="from">${escapeHtml(from)} <small class="small-muted" style="font-weight:400">${escapeHtml(date)}</small></div>
+                                                    <div class="text" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(m.text_content)}</div>`;
+                                    body.appendChild(mdiv);
+                                });
+                            }
+                        } else {
+                            const participant = g.chat_title || 'Собеседник';
+                            const header = document.createElement('div');
+                            header.style.fontWeight = '600';
+                            header.style.marginBottom = '8px';
+                            header.innerHTML = `${escapeHtml(participant)} <span class="small-muted" style="font-weight:400; margin-left:8px;">${g.total_messages} сообщений</span>`;
+                            body.appendChild(header);
+
+                            if (g.collapsed) {
+                                const summaryBox = document.createElement('div');
+                                summaryBox.className = 'chat-summary';
+                                summaryBox.innerHTML = `<strong>Сводка:</strong> ${escapeHtml(g.summary || '(нет сводки)')}`;
+                                body.appendChild(summaryBox);
+
+                                const msgsWrap = document.createElement('div');
+                                msgsWrap.className = 'chat-messages-collapsed';
+                                msgsWrap.style.display = 'none';
+                                g.messages.forEach(m => {
+                                    const mdiv = document.createElement('div');
+                                    mdiv.className = 'chat-msg';
+                                    const date = m.date ? new Date(m.date).toLocaleString() : '';
+                                    mdiv.innerHTML = `<div class="small-muted" style="font-size:0.85rem">${escapeHtml(date)}</div>
+                                                    <div class="text" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(m.text_content)}</div>`;
+                                    msgsWrap.appendChild(mdiv);
+                                });
+                                body.appendChild(msgsWrap);
+                            } else {
+                                g.messages.forEach(m => {
+                                    const mdiv = document.createElement('div');
+                                    mdiv.className = 'chat-msg';
+                                    const date = m.date ? new Date(m.date).toLocaleString() : '';
+                                    mdiv.innerHTML = `<div class="small-muted" style="font-size:0.85rem">${escapeHtml(date)}</div>
+                                                    <div class="text" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(m.text_content)}</div>`;
+                                    body.appendChild(mdiv);
+                                });
+                            }
+                        }
+
+                        // AI reply area
+                        const aiArea = document.createElement('div');
+                        aiArea.className = 'mt-2';
+                        aiArea.style.display = 'block';
+                        aiArea.innerHTML = `<div style="padding:10px;border-radius:8px;background:#f0f8ff;"><strong>Ответ ИИ (групповой):</strong><div class="ai-reply-text" style="margin-top:8px; white-space:pre-wrap">${escapeHtml(g.summary || '')}</div>
+                                            <div class="mt-2 text-end"><button class="btn btn-sm btn-primary btn-copy-reply">Копировать</button></div></div>`;
+
+                        card.appendChild(body);
+                        card.appendChild(aiArea);
+                        container.appendChild(card);
+
+                        // События: toggle, copy, mark read
+                        const btnToggle = card.querySelector('.btn-toggle');
+                        const msgsCollapsedWrap = card.querySelector('.chat-messages-collapsed');
+                        btnToggle.addEventListener('click', () => {
+                            if (!msgsCollapsedWrap) {
+                                // если нет collapsed-переключателя (маленький чат), переключаем высоту
+                                if (body.style.maxHeight && body.style.maxHeight !== 'none') {
+                                    body.style.maxHeight = null;
+                                    btnToggle.textContent = 'Свернуть';
+                                } else {
+                                    body.style.maxHeight = '200px';
+                                    btnToggle.textContent = 'Развернуть';
+                                }
+                                return;
+                            }
+                            if (msgsCollapsedWrap.style.display === 'none') {
+                                msgsCollapsedWrap.style.display = 'block';
+                                btnToggle.textContent = 'Свернуть';
+                            } else {
+                                msgsCollapsedWrap.style.display = 'none';
+                                btnToggle.textContent = 'Развернуть';
+                            }
+                        });
+
+                        const btnGen = card.querySelector('.btn-gen-reply');
+                        btnGen.addEventListener('click', () => {
+                            // Просто фокусируем/подсвечиваем aiArea (она уже видима)
+                            aiArea.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        });
+
+                        const btnCopy = card.querySelector('.btn-copy-reply');
+                        btnCopy && btnCopy.addEventListener('click', () => {
+                            const txt = card.querySelector('.ai-reply-text').innerText;
+                            navigator.clipboard && navigator.clipboard.writeText(txt);
+                            alert('Ответ скопирован в буфер обмена');
+                        });
+
+                        const btnRead = card.querySelector('.btn-mark-read');
+                        btnRead.addEventListener('click', () => {
+                            if (!confirm('Удалить все сообщения этой группы?')) return;
+                            const ids = g.messages.map(m => m.id);
+                            Promise.all(ids.map(i => fetch(`/api/messages/${i}`, { method: 'DELETE' })))
+                                .then(() => {
+                                    loadMessages();
+                                    loadAnalysis();
+                                }).catch(e => {
+                                    console.error('delete group error', e);
+                                    alert('Ошибка при удалении');
+                                });
+                        });
+                    });
+                })
+                .catch(err => {
+                    console.error('Ошибка загрузки grouped messages', err);
+                    document.getElementById('messages-container').innerHTML = '<div class="empty-state">Ошибка загрузки сообщений</div>';
+                });
+        }
+
+
+
+        // AI Analysis panel (после получения html - вешаем события на чипы)
+        function loadAnalysis(){
+            const root = document.getElementById('analysis-root');
+            root.innerHTML = `<div class="analysis-block small-muted">Загрузка анализа...</div>`;
+
+            // передаём какие источники включены, чтобы сервер мог учитывать
+            const params = new URLSearchParams();
+            params.append('sources', JSON.stringify(Array.from(enabledSources)));
+
+            fetch('/api/analysis?' + params.toString())
+                .then(r => r.json())
+                .then(resp => {
+                    root.innerHTML = resp.html || '<div class="analysis-block small-muted">Нет данных для анализа</div>';
+
+                    // делегированно повесим обработчик на чипы
+                    root.querySelectorAll('.kw-chip').forEach(chip => {
+                        chip.addEventListener('click', function(){
+                            const kw = this.dataset.keyword || this.textContent.trim();
+                            setActiveTopic(kw);
+                        });
+                    });
+
+                    // обновим активные чипы согласно текущему содержимому поиска
+                    updateActiveChipsBySearch();
+                })
+                .catch(err => {
+                    console.error('analysis error', err);
+                    root.innerHTML = `<div class="analysis-block small-muted">Не удалось получить анализ</div>`;
+                });
+        }
+
+        // escape
+        function escapeHtml(str){
+            if(!str) return '';
+            return str.replace(/[&<>"'`=\/]/g, function(s){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[s]; });
+        }
+
+        // listeners
+        document.getElementById('priority-filter').addEventListener('change', function(){ currentPriority = this.value; loadMessages(); });
+        document.getElementById('search-input').addEventListener('input', function(){
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                currentSearch = this.value;
+                loadMessages();
+                updateActiveChipsBySearch();
+            }, 280);
+        });
+        document.getElementById('sort-order').addEventListener('change', function(){ currentSortOrder = this.value; loadMessages(); });
+        document.getElementById('refresh-btn').addEventListener('click', () => { loadMessages(); loadAnalysis(); });
+        document.getElementById('refresh-analysis').addEventListener('click', () => loadAnalysis());
+        document.getElementById('auto-refresh-switch').addEventListener('change', (e) => { autoRefresh = e.target.checked; });
+
+        // auto refresh loop
+        setInterval(() => {
+            if(autoRefresh) {
+                loadMessages();
+            }
+        }, REFRESH_INTERVAL_MS);
+
+        // init
+        window.onload = () => {
+            loadSources();
+            loadMessages();
+            loadAnalysis();
+        };
+    </script>
+</body>
+</html>
